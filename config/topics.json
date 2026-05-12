@@ -1,0 +1,53 @@
+{
+  "channel_name": "The Dark Psyche",
+  "youtube_channel_id": "",
+  "wordpress_site": "darkpsychelab.wordpress.com",
+  "amazon_associate_tag": "",
+  "posting_schedule": {
+    "default_days": ["Monday", "Wednesday", "Friday"],
+    "min_posts_per_week": 2,
+    "max_posts_per_week": 5
+  },
+  "categories": {
+    "Dark Psychology": "dark-psychology",
+    "Manipulation & Persuasion": "manipulation-persuasion",
+    "Self-Defense & Awareness": "self-defense-awareness",
+    "Case Studies": "case-studies",
+    "Book Reviews & Resources": "book-reviews-resources",
+    "YouTube Highlights": "youtube-highlights"
+  },
+  "core_topics": [
+    "dark triad personality traits",
+    "narcissistic abuse and recovery",
+    "gaslighting tactics and how to spot them",
+    "covert manipulation techniques",
+    "body language and deception detection",
+    "cult psychology and mass influence",
+    "emotional manipulation in relationships",
+    "persuasion and influence science",
+    "cognitive biases exploited by manipulators",
+    "psychological self-defense strategies",
+    "shadow psychology and Carl Jung",
+    "sociopathy vs psychopathy explained",
+    "love bombing and trauma bonding",
+    "DARVO manipulation tactic",
+    "Stockholm syndrome and coercive control",
+    "Machiavellian intelligence",
+    "neuro-linguistic programming demystified",
+    "the psychology of con artists",
+    "toxic relationship patterns",
+    "building psychological resilience"
+  ],
+  "amazon_product_keywords": [
+    "dark psychology books",
+    "manipulation and persuasion",
+    "emotional intelligence",
+    "narcissistic abuse recovery",
+    "body language",
+    "psychology self-help",
+    "cognitive behavioral therapy",
+    "mindfulness meditation",
+    "journaling notebooks",
+    "stoicism philosophy books"
+  ]
+}
