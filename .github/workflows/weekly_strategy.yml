@@ -1,0 +1,45 @@
+name: Weekly Strategy Adjustment
+
+on:
+  schedule:
+    - cron: '0 10 * * 0'  # Every Sunday at 10am UTC (midnight HST)
+  workflow_dispatch: {}
+
+jobs:
+  adjust:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run strategy adjustment
+        env:
+          ANTHROPIC_API_KEY:   ${{ secrets.ANTHROPIC_API_KEY }}
+          WP_SITE:             ${{ secrets.WP_SITE }}
+          WP_USERNAME:         ${{ secrets.WP_USERNAME }}
+          WP_APP_PASSWORD:     ${{ secrets.WP_APP_PASSWORD }}
+          YOUTUBE_API_KEY:     ${{ secrets.YOUTUBE_API_KEY }}
+          YOUTUBE_CHANNEL_ID:  ${{ secrets.YOUTUBE_CHANNEL_ID }}
+        run: python scripts/adjust_strategy.py
+
+      - name: Commit strategy updates
+        run: |
+          git config user.name  "Dark Psyche Bot"
+          git config user.email "bot@darkpsychelab.com"
+          git add config/analytics_state.json config/topics.json .github/workflows/post_blog.yml
+          git diff --staged --quiet || git commit -m "chore: weekly strategy update [skip ci]"
+          git push
