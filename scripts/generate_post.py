@@ -7,7 +7,6 @@ embeds Amazon affiliate products, and publishes to WordPress.com.
 
 import os
 import json
-import base64
 import random
 import logging
 import re
@@ -23,11 +22,10 @@ from google.auth.transport.requests import Request
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger(__name__)
 
-# ── env vars ──────────────────────────────────────────────────────────────────
+# -- env vars ------------------------------------------------------------------
 ANTHROPIC_API_KEY   = os.environ["ANTHROPIC_API_KEY"]
 WP_SITE             = os.environ.get("WP_SITE", "darkpsychelab.wordpress.com")
-WP_USERNAME         = os.environ["WP_USERNAME"]
-WP_APP_PASSWORD     = os.environ["WP_APP_PASSWORD"]
+WP_TOKEN            = os.environ["WP_TOKEN"]
 YOUTUBE_TOKEN_B64   = os.environ.get("YOUTUBE_TOKEN_B64", "")
 YOUTUBE_API_KEY     = os.environ.get("YOUTUBE_API_KEY", "")
 YOUTUBE_CHANNEL_ID  = os.environ.get("YOUTUBE_CHANNEL_ID", "")
@@ -41,12 +39,12 @@ ANALYTICS_PATH = Path(__file__).parent.parent / "config" / "analytics_state.json
 client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 
 
-# ── YouTube helpers ────────────────────────────────────────────────────────────
+# -- YouTube helpers -----------------------------------------------------------
 
-def get_recent_youtube_videos(max_results: int = 5) -> list[dict]:
+def get_recent_youtube_videos(max_results: int = 5) -> list:
     """Return recent videos from the channel using API key (public data)."""
     if not YOUTUBE_API_KEY or not YOUTUBE_CHANNEL_ID:
-        log.warning("YOUTUBE_API_KEY or YOUTUBE_CHANNEL_ID not set — skipping YT fetch")
+        log.warning("YOUTUBE_API_KEY or YOUTUBE_CHANNEL_ID not set -- skipping YT fetch")
         return []
     try:
         yt = build("youtube", "v3", developerKey=YOUTUBE_API_KEY)
@@ -73,13 +71,10 @@ def get_recent_youtube_videos(max_results: int = 5) -> list[dict]:
         return []
 
 
-# ── Topic selection ────────────────────────────────────────────────────────────
+# -- Topic selection -----------------------------------------------------------
 
-def choose_topic(videos: list[dict], config: dict, analytics: dict) -> dict:
-    """
-    Pick the best topic for today's post.
-    Priority: recent YouTube video > high-performing past topic > random core topic.
-    """
+def choose_topic(videos: list, config: dict, analytics: dict) -> dict:
+    """Pick the best topic for today's post."""
     used_topics = set(analytics.get("used_topics", []))
     top_topics = analytics.get("top_performing_topics", [])
 
@@ -93,27 +88,25 @@ def choose_topic(videos: list[dict], config: dict, analytics: dict) -> dict:
             "seed": v["description"],
         }
 
-    # Prefer topics that performed well before (if not recently used)
     for t in top_topics:
         if t not in used_topics:
             return {"type": "core_topic", "seed": t}
 
-    # Fall back to random unused core topic
     remaining = [t for t in config["core_topics"] if t not in used_topics]
     if not remaining:
-        remaining = config["core_topics"]  # reset cycle
+        remaining = config["core_topics"]
     return {"type": "core_topic", "seed": random.choice(remaining)}
 
 
-# ── Amazon helpers ─────────────────────────────────────────────────────────────
+# -- Amazon helpers ------------------------------------------------------------
 
-def get_amazon_products(keywords: str, config: dict) -> list[dict]:
+def get_amazon_products(keywords: str, config: dict) -> list:
     if AMAZON_ACCESS_KEY and AMAZON_SECRET_KEY and AMAZON_TAG:
         return _pa_api_search(keywords)
     return _generate_search_links(keywords, config)
 
 
-def _generate_search_links(keywords: str, config: dict) -> list[dict]:
+def _generate_search_links(keywords: str, config: dict) -> list:
     tag = AMAZON_TAG or "darkpsyche-20"
     base = "https://www.amazon.com/s?k={query}&tag={tag}"
     products = []
@@ -129,9 +122,8 @@ def _generate_search_links(keywords: str, config: dict) -> list[dict]:
     return products
 
 
-def _pa_api_search(keywords: str) -> list[dict]:
-    import hmac, hashlib, urllib.parse
-
+def _pa_api_search(keywords: str) -> list:
+    import hmac, hashlib
     host = "webservices.amazon.com"
     region = "us-east-1"
     service = "ProductAdvertisingAPI"
@@ -164,8 +156,7 @@ def _pa_api_search(keywords: str) -> list[dict]:
         k_date    = sign(("AWS4" + key).encode("utf-8"), date_stamp)
         k_region  = sign(k_date, region)
         k_service = sign(k_region, service)
-        k_signing = sign(k_service, "aws4_request")
-        return k_signing
+        return sign(k_service, "aws4_request")
 
     canonical_headers = "".join(f"{k.lower()}:{v}\n" for k, v in sorted(headers.items()))
     signed_headers = ";".join(sorted(h.lower() for h in headers))
@@ -193,23 +184,17 @@ def _pa_api_search(keywords: str) -> list[dict]:
     try:
         resp = requests.post(endpoint, data=payload, headers=headers, timeout=10)
         items = resp.json().get("SearchResult", {}).get("Items", [])
-        products = []
-        for item in items:
-            products.append({
-                "title": item["ItemInfo"]["Title"]["DisplayValue"],
-                "url": f"https://www.amazon.com/dp/{item['ASIN']}?tag={AMAZON_TAG}",
-                "asin": item["ASIN"],
-                "type": "product",
-            })
-        return products
+        return [{"title": i["ItemInfo"]["Title"]["DisplayValue"],
+                 "url": f"https://www.amazon.com/dp/{i['ASIN']}?tag={AMAZON_TAG}",
+                 "asin": i["ASIN"], "type": "product"} for i in items]
     except Exception as e:
         log.error(f"PA API error: {e}")
         return []
 
 
-# ── Claude post generation ─────────────────────────────────────────────────────
+# -- Claude post generation ----------------------------------------------------
 
-def generate_blog_post(topic: dict, products: list[dict], config: dict) -> dict:
+def generate_blog_post(topic: dict, products: list, config: dict) -> dict:
     product_block = ""
     if products:
         product_block = "\n\nRESOURCES TO EMBED (use these as affiliate recommendations):\n"
@@ -224,7 +209,7 @@ def generate_blog_post(topic: dict, products: list[dict], config: dict) -> dict:
         f"Topic to write about: {topic['seed']}"
     )
 
-    prompt = f"""You are a writer for "The Dark Psyche" blog — a site focused on dark psychology,
+    prompt = f"""You are a writer for "The Dark Psyche" blog -- a site focused on dark psychology,
 manipulation awareness, and psychological self-defense. The tone is intelligent, direct, and
 slightly edgy but never harmful. You educate readers to protect themselves.
 
@@ -236,12 +221,13 @@ Write a complete, SEO-optimized blog post for the following:
 Requirements:
 - Title: Compelling, curiosity-driven, SEO-friendly (include a number or "how to" when natural)
 - Length: 900-1200 words
-- Structure: Intro hook → 4-6 subheadings → conclusion with CTA
+- Structure: Intro hook -> 4-6 subheadings -> conclusion with CTA
 - Naturally embed the affiliate product links in context
 - End with a call-to-action to subscribe to The Dark Psyche YouTube channel
 - Include a 1-2 sentence meta description at the very end labeled "META:"
 - Include 5 relevant tags at the very end labeled "TAGS:" (comma separated)
-- Include the best category labeled "CATEGORY:" — choose from: {list(config['categories'].keys())}
+- Include the best category labeled "CATEGORY:" -- choose from: {list(config['categories'].keys())}
+{"- Include an embedded YouTube video section with the URL: " + topic.get('video_url','') if is_video else ""}
 
 Output ONLY the blog post content in HTML-ready markdown. Do not include preamble."""
 
@@ -288,9 +274,9 @@ Output ONLY the blog post content in HTML-ready markdown. Do not include preambl
     }
 
 
-# ── WordPress publishing ───────────────────────────────────────────────────────
+# -- WordPress publishing ------------------------------------------------------
 
-def get_wp_category_id(category_name: str, config: dict) -> int | None:
+def get_wp_category_id(category_name: str, config: dict):
     slug = config["categories"].get(category_name, "")
     url = f"https://public-api.wordpress.com/wp/v2/sites/{WP_SITE}/categories"
     resp = requests.get(url, params={"slug": slug}, timeout=10)
@@ -301,9 +287,8 @@ def get_wp_category_id(category_name: str, config: dict) -> int | None:
 
 
 def publish_to_wordpress(post: dict, config: dict) -> str:
-    auth = base64.b64encode(f"{WP_USERNAME}:{WP_APP_PASSWORD}".encode()).decode()
     headers = {
-        "Authorization": f"Basic {auth}",
+        "Authorization": f"Bearer {WP_TOKEN}",
         "Content-Type": "application/json",
     }
     api_base = f"https://public-api.wordpress.com/wp/v2/sites/{WP_SITE}"
@@ -312,12 +297,7 @@ def publish_to_wordpress(post: dict, config: dict) -> str:
 
     tag_ids = []
     for tag_name in post.get("tags", []):
-        resp = requests.post(
-            f"{api_base}/tags",
-            headers=headers,
-            json={"name": tag_name},
-            timeout=10,
-        )
+        resp = requests.post(f"{api_base}/tags", headers=headers, json={"name": tag_name}, timeout=10)
         data = resp.json()
         tag_id = data.get("id") or data.get("term_id")
         if tag_id:
@@ -336,11 +316,11 @@ def publish_to_wordpress(post: dict, config: dict) -> str:
     resp.raise_for_status()
     result = resp.json()
     post_url = result.get("link", "")
-    log.info(f"Published: {post['title']} → {post_url}")
+    log.info(f"Published: {post['title']} -> {post_url}")
     return post_url
 
 
-# ── Analytics state ────────────────────────────────────────────────────────────
+# -- Analytics state -----------------------------------------------------------
 
 def load_analytics() -> dict:
     if ANALYTICS_PATH.exists():
@@ -352,17 +332,17 @@ def save_analytics(analytics: dict, topic_seed: str) -> None:
     used = analytics.get("used_topics", [])
     used.append(topic_seed)
     if len(used) > 50:
-                used = used[-50:]
+        used = used[-50:]
     analytics["used_topics"] = used
     analytics["posts_this_week"] = analytics.get("posts_this_week", 0) + 1
     analytics["last_post_date"] = datetime.now(timezone.utc).isoformat()
     ANALYTICS_PATH.write_text(json.dumps(analytics, indent=2))
 
 
-# ── Main ───────────────────────────────────────────────────────────────────────
+# -- Main ----------------------------------------------------------------------
 
 def main():
-    config   = json.loads(CONFIG_PATH.read_text())
+    config    = json.loads(CONFIG_PATH.read_text())
     analytics = load_analytics()
 
     videos  = get_recent_youtube_videos(max_results=3)
@@ -377,7 +357,7 @@ def main():
 
     save_analytics(analytics, post["topic_seed"])
     log.info(f"Done. Post live at: {url}")
-    print(f"::notice::Published: {post['title']} → {url}")
+    print(f"::notice::Published: {post['title']} -> {url}")
 
 
 if __name__ == "__main__":
