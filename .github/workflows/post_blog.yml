@@ -2,7 +2,7 @@ name: Post Blog Article
 
 on:
   schedule:
-    - cron: '0 14 * * 1,3,5'  # auto-managed -- Mon/Wed/Fri at 2pm UTC (4am HST)
+    - cron: '0 14 * * 1,3,5'  # auto-managed — Mon/Wed/Fri at 2pm UTC (4am HST)
   workflow_dispatch:
     inputs:
       force_topic:
@@ -35,8 +35,7 @@ jobs:
         env:
           ANTHROPIC_API_KEY:      ${{ secrets.ANTHROPIC_API_KEY }}
           WP_SITE:                ${{ secrets.WP_SITE }}
-          WP_USERNAME:            ${{ secrets.WP_USERNAME }}
-          WP_APP_PASSWORD:        ${{ secrets.WP_APP_PASSWORD }}
+          WP_TOKEN:               ${{ secrets.WP_TOKEN }}
           YOUTUBE_API_KEY:        ${{ secrets.YOUTUBE_API_KEY }}
           YOUTUBE_CHANNEL_ID:     ${{ secrets.YOUTUBE_CHANNEL_ID }}
           YOUTUBE_TOKEN_B64:      ${{ secrets.YOUTUBE_TOKEN_B64 }}
